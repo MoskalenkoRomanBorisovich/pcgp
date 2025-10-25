@@ -42,6 +42,13 @@
 *.idb
 *.pdb
 
+# IDE files
+.vs/
+
+# Build results
+build/*
+out/*
+
 # Kernel Module Compile Results
 *.mod*
 *.cmd
