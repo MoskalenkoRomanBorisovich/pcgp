@@ -105,6 +105,11 @@ void circulantBFS(Arena* restrict arena, GraphProp* restrict prop, Graph* restri
     int diam = 0;
     int dist_sum = 0;
     for (int i = 0; i < g->n; i++) {
+        if (dist[i] == INT_MAX) {
+            prop->diam = INT_MAX;
+            prop->aspl = DBL_MAX;
+            return;
+        }
         diam = diam > dist[i] ? diam : dist[i];
         dist_sum += dist[i];
     }
@@ -434,22 +439,25 @@ bool pcgp_scan_main(int argc, char** argv)
             {/* compute and write values for S */
                 GraphProp prop = { 0 };
                 circulantBFS(&arena, &prop, &g);
-                if (prop.diam <= scan.best_diam && prop.aspl <= scan.best_aspl) {
-                    if (prop.aspl < scan.best_aspl) {
-                        scan.best_aspl = prop.aspl;
-                        scan.best_diam = prop.diam;
-                        scan.graph_count_best = 1;
-                    }
-                    else {
-                        scan.graph_count_best++;
-                    }
+                bool write = false;
+                if (prop.aspl < scan.best_aspl
+                    || prop.aspl == scan.best_aspl && prop.diam < scan.best_diam
+                    ) {
+                    scan.best_aspl = prop.aspl;
+                    scan.best_diam = prop.diam;
+                    scan.graph_count_best = 1;
+                    write = true;
+                }
+                else if (prop.aspl == scan.best_aspl && prop.diam == scan.best_diam) {
+                    scan.graph_count_best++;
+                    write = true;
+                }
+                if (write) {/* write only the variable part of S */
                     scan.bfs_log_count++;
-                    {/* write only the variable part of S */
-                        void* buf = g.s + g.so;
-                        size_t len = g.k - g.so;
-                        if (fwrite(buf, sizeof(*g.s), len, bfs_file) < len)
-                            return false;
-                    }
+                    void* buf = g.s + g.so;
+                    size_t len = g.k - g.so;
+                    if (fwrite(buf, sizeof(*g.s), len, bfs_file) < len)
+                        return false;
                 }
             }
             running = next_lexicographic_step(&g);

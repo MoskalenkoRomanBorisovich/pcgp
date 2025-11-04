@@ -44,6 +44,7 @@
 
 # IDE files
 .vs/
+.vscode/
 
 # Build results
 build/*
