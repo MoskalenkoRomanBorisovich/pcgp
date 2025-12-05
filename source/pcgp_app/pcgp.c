@@ -20,7 +20,8 @@
 #include <float.h>
 #include <ctype.h>
 
-#include "pcgpmem.h"
+#include <pcgpmem.h>
+#include <pcgp.h>
 
 #define LINE_MAX 4096
 
@@ -51,187 +52,6 @@ bool str2int(int* out, char* str, int base) {
     }
 }
 
-typedef struct {
-    int n;      // order
-    int k;      // number of jumps
-    int so;     // number of static jumps
-    int* s;     // jumps
-} Graph;
-
-typedef struct {
-    int     diam;
-    double  aspl;
-} GraphProp;
-
-typedef struct {
-    int u;
-    int v;
-} VertPair;
-
-void adjVert(VertPair* restrict p, Graph* restrict g, int u, int i) {
-    p->u = (u + g->s[i]) % g->n;
-    p->v = (u - g->s[i] + g->n) % g->n;
-}
-
-void circulantBFS(Arena* restrict arena, GraphProp* restrict prop, Graph* restrict g) {
-    int* restrict dist = arenaAlloc(arena, g->n * sizeof(*dist));
-    int* restrict queue = arenaAlloc(arena, g->n * sizeof(*queue));
-    dist[0] = 0;
-    for (int i = 1; i < g->n; i++) {
-        dist[i] = INT_MAX;
-    }
-    queue[0] = 0;
-    int qr = 0;
-    int qw = 1;
-    int vc = 1;
-    while (vc < g->n && qr != qw) {
-        int u = queue[qr++];
-        int d = dist[u] + 1;
-        for (int i = 0; i < g->k; i++) {
-            VertPair uv = { 0 };
-            adjVert(&uv, g, u, i);
-            if (dist[uv.u] == INT_MAX) {
-                queue[qw++] = uv.u;
-                dist[uv.u] = dist[(g->n - uv.u) % g->n] = d;
-                vc += 2;
-            }
-            if (dist[uv.v] == INT_MAX) {
-                queue[qw++] = uv.v;
-                dist[uv.v] = dist[(g->n - uv.v) % g->n] = d;
-                vc += 2;
-            }
-        }
-    }
-    int diam = 0;
-    int dist_sum = 0;
-    for (int i = 0; i < g->n; i++) {
-        if (dist[i] == INT_MAX) {
-            prop->diam = INT_MAX;
-            prop->aspl = DBL_MAX;
-            return;
-        }
-        diam = diam > dist[i] ? diam : dist[i];
-        dist_sum += dist[i];
-    }
-    prop->diam = diam;
-    prop->aspl = (double)dist_sum / (g->n - 1);
-}
-
-typedef struct {
-    int a, b;
-    int g;
-} KLPair;
-
-int KernighanLinC(Graph* graph, const int* part, unsigned a, unsigned b) {
-    for (int i = 0; i < graph->k; i++) {
-        VertPair uv = { 0 };
-        adjVert(&uv, graph, a, i);
-        if (uv.v == b || uv.u == b) {
-            return part[a] != part[b] ? 1 : -1;
-        }
-    }
-    return 0;
-}
-
-int KernighanLinPartitionCost(Graph* graph, const int* part) {
-    int cost = 0;
-    for (int u = 0; u < graph->n; u++) {
-        for (int i = 0; i < graph->k; i++) {
-            const int v = (u + graph->s[i]) % graph->n;
-            if (part[u] != part[v]) {
-                cost++;
-            }
-        }
-    }
-    return cost;
-}
-
-int circulantKernighanLin(Arena* restrict arena, Graph* restrict graph) {
-    int passes = 0;
-    int* restrict V = arenaAlloc(arena, graph->n * sizeof(*V));
-    int* restrict P = arenaAlloc(arena, graph->n * sizeof(*P));
-    int* restrict D = arenaAlloc(arena, graph->n * sizeof(*D));
-    int* restrict G_sum = arenaAlloc(arena, graph->n * sizeof(*G_sum));
-    int G_sum_max = 0;
-    int GAB_size = 0;
-    KLPair* restrict GAB = arenaAlloc(arena, graph->n * sizeof(*GAB));
-    for (int i = 0; i < graph->n / 2; i++) {
-        P[i] = 0;
-    }
-    for (int i = graph->n / 2; i < graph->n; i++) {
-        P[i] = 1;
-    }
-    do {
-        GAB_size = 0;
-        for (int u = 0; u < graph->n; u++) {
-            V[u] = 0;
-            D[u] = 0;
-            for (int i = 0; i < graph->k; i++) {
-                VertPair uv = { 0 };
-                adjVert(&uv, graph, u, i);
-                D[u] += (P[u] != P[uv.u] ? 1 : -1);
-                if (uv.u != uv.v) {
-                    D[u] += (P[u] != P[uv.v] ? 1 : -1);
-                }
-            }
-        }
-        for (int i = 0; i < graph->n / 2; i++) {
-            int g_max = INT_MIN;
-            int a_max = 0, b_max = 0;
-            for (int a = 0; a < graph->n; a++) {
-                if (!V[a] && (P[a] == 0)) {
-                    for (int b = 0; b < graph->n; b++) {
-                        if (!V[b] && (P[b] == 1)) {
-                            int g = D[a] + D[b] - 2 * KernighanLinC(graph, P, a, b);
-                            if (g > g_max) {
-                                g_max = g;
-                                a_max = a;
-                                b_max = b;
-                            }
-                        }
-                    }
-                }
-            }
-            V[a_max] = V[b_max] = 1;
-            KLPair* gab = &GAB[GAB_size++];
-            gab->a = a_max;
-            gab->b = b_max;
-            gab->g = g_max;
-            for (int u = 0; u < graph->n; u++) {
-                if (V[u]) continue;
-                else if (P[u]) {
-                    int c_yb = KernighanLinC(graph, P, u, b_max);
-                    int c_ab = KernighanLinC(graph, P, u, a_max);
-                    D[u] += 2 * c_yb - 2 * c_ab;
-                }
-                else {
-                    int c_xa = KernighanLinC(graph, P, u, a_max);
-                    int c_xb = KernighanLinC(graph, P, u, b_max);
-                    D[u] += 2 * c_xa - 2 * c_xb;
-                }
-            }
-        }
-        int k = 0;
-        G_sum_max = G_sum[0] = GAB[0].g;
-        for (int i = 1; i < GAB_size; i++) {
-            G_sum[i] = G_sum[i - 1] + GAB[i].g;
-            if (G_sum[i] > G_sum_max) {
-                G_sum_max = G_sum[i];
-                k = i;
-            }
-        }
-        if (G_sum_max > 0) {
-            for (int i = 0; i <= k; i++) {
-                KLPair* uv = &GAB[i];
-                int tmp = P[uv->a];
-                P[uv->a] = P[uv->b];
-                P[uv->b] = tmp;
-            }
-        }
-        passes++;
-    } while (G_sum_max > 0);
-    return KernighanLinPartitionCost(graph, P);
-}
 
 enum PcgpStage {
     PCGP_STAGE_BFS,
@@ -274,33 +94,7 @@ enum PcgpMode {
     PCGP_MODE_IMMEDIATE,
 };
 
-int graphCheck(Graph* g) {
-    if (g->n < 0 || g->k <= 0 || g->k > g->n / 2 || g->so < 0 || g->so > g->k) {
-        return 1;
-    }
-    else {
-        return 0;
-    }
-}
 
-bool next_lexicographic_step(Graph* g)
-{/* compute the next lexicographical S or stop */
-    int n = g->n / 2;
-    int k = g->k - g->so;
-    int* s = g->s + g->so;
-    bool changed = false;
-    for (int i = 1; i <= k; ++i) {
-        if (s[k - i] <= n - i) {
-            ++s[k - i];
-            for (int j = k - i + 1; j < k; ++j) {
-                s[j] = s[j - 1] + 1;
-            }
-            changed = true;
-            break;
-        }
-    }
-    return changed;
-}
 
 
 bool pcgp_scan_main(int argc, char** argv)
@@ -351,7 +145,7 @@ bool pcgp_scan_main(int argc, char** argv)
                 }
                 void* buf = g.s + g.so;
                 size_t len = g.k - g.so;
-                if (fread(g.s + g.so, sizeof(*g.s), len, state_file) == len) {
+                if (fread(buf, sizeof(*g.s), len, state_file) == len) {
                     restored = true;
                 }
             }
@@ -438,7 +232,7 @@ bool pcgp_scan_main(int argc, char** argv)
         while (running) {
             {/* compute and write values for S */
                 GraphProp prop = { 0 };
-                circulantBFS(&arena, &prop, &g);
+                circulantBFS_2(&arena, &prop, &g);
                 bool write = false;
                 if (prop.aspl < scan.best_aspl
                     || prop.aspl == scan.best_aspl && prop.diam < scan.best_diam
@@ -521,7 +315,7 @@ bool pcgp_scan_main(int argc, char** argv)
                 void* buf = g.s + g.so;
                 size_t len = g.k - g.so;
                 size_t ele_read = 0;
-                while (ele_read = fread(buf, sizeof(*g.s), len, bfs_file)) {
+                while ((ele_read = fread(buf, sizeof(*g.s), len, bfs_file))) {
                     if (ele_read == len) {
                         for (int i = 0; i < g.k - 1; i++) {
                             fprintf(output_file, "%d ", g.s[i]);
@@ -554,7 +348,7 @@ bool pcgp_scan_main(int argc, char** argv)
             size_t len = g.k - g.so;
             size_t ele_read = 0;
             clock_start = clock_prev = clock();
-            while (ele_read = fread(buf, sizeof(*g.s), len, bfs_file)) {
+            while ((ele_read = fread(buf, sizeof(*g.s), len, bfs_file))) {
                 if (ele_read == len) {
                     int bisect_cost = circulantKernighanLin(&arena, &g);
                     if (bisect_cost >= scan.best_bisect_cost) {
@@ -567,9 +361,9 @@ bool pcgp_scan_main(int argc, char** argv)
                         }
                         scan.kl_log_count++;
                         {
-                            void* buf = g.s + g.so;
-                            size_t len = g.k - g.so;
-                            if (fwrite(buf, sizeof(*g.s), len, kl_file) < len)
+                            void* buf_kl = g.s + g.so;
+                            size_t len_kl = g.k - g.so;
+                            if (fwrite(buf_kl, sizeof(*g.s), len_kl, kl_file) < len)
                                 return false;
                         }
                     }
@@ -628,7 +422,7 @@ bool pcgp_scan_main(int argc, char** argv)
                 void* buf = g.s + g.so;
                 size_t len = g.k - g.so;
                 size_t ele_read = 0;
-                while (ele_read = fread(buf, sizeof(*g.s), len, kl_file)) {
+                while ((ele_read = fread(buf, sizeof(*g.s), len, kl_file))) {
                     if (ele_read == len) {
                         for (int i = 0; i < g.k - 1; i++) {
                             fprintf(output_file, "%d ", g.s[i]);
@@ -659,7 +453,6 @@ bool pcgp_immediate_main()
         arenaInit(&arena, arena_mem, arena_size);
     }
     int graph_buf[BUFSIZ] = { 0 };
-    int gk = 0;
     char line_buf[LINE_MAX] = { 0 };
     while (fgets(line_buf, LINE_MAX, stdin)) {
         if (ferror(stdin))
@@ -683,7 +476,7 @@ bool pcgp_immediate_main()
         }
         {
             GraphProp prop = { 0 };
-            circulantBFS(&arena, &prop, &g);
+            circulantBFS_2(&arena, &prop, &g);
             int bisect_cost = circulantKernighanLin(&arena, &g);
             fprintf(stdout, "%d %g %d\n", prop.diam, prop.aspl, bisect_cost);
         }
