@@ -4,7 +4,7 @@ extern "C" {
 #include <pcgp.h>
 }
 
-inline IntGraphProp IntGraphProp_inf() noexcept {
+inline IntGraphProp IntGraphProp_infty() noexcept {
 	IntGraphProp prop;
 	IntGraphProp_infty(&prop);
 	return prop;

@@ -84,7 +84,7 @@ void test_pcgp_parallel(int n, int k, int so)
 		validate(!!prop);
 		GraphProp gprop;
 		calcGraphProp(n, &*prop, &gprop);
-		pcgp::write_results_csv(n, k, gprop, s_res_graph, std::cout);
+		pcgp::write_results_csv(n, k, gprop, s_res_graph, true, std::cout);
 
 		const auto end = std::chrono::high_resolution_clock::now();
 		const std::chrono::duration<double> elapsed = end - start;
@@ -103,7 +103,7 @@ void test_pcgp_parallel_with_precalc(int n, int k, int so)
 			n,
 			k - 1,
 			so,
-			IntGraphProp_inf(),
+			IntGraphProp_infty(),
 			[](const unsigned int id, const Graph& g, const IntGraphProp& prop, const std::atomic<IntGraphProp>& best_prop) {
 				(void)id;
 				(void)g;
@@ -121,7 +121,7 @@ void test_pcgp_parallel_with_precalc(int n, int k, int so)
 		validate(!!prop);
 		GraphProp gprop;
 		calcGraphProp(n, &*prop, &gprop);
-		pcgp::write_results_csv(n, k, gprop, s_res_graph, std::cout);
+		pcgp::write_results_csv(n, k, gprop, s_res_graph, true, std::cout);
 
 		const auto end = std::chrono::high_resolution_clock::now();
 		const std::chrono::duration<double> elapsed = end - start;
@@ -171,8 +171,9 @@ int main () {
 	//test_pcgp_parallel(64, 2, 1);
 	//test_pcgp_parallel(26, 3, 1);
 	//test_pcgp_parallel(20, 4, 1);
-	test_pcgp_parallel(250, 6, 1);
-	test_pcgp_parallel_with_precalc(250, 6, 1);
+	//test_pcgp_parallel(1024, 5, 1);
+	test_pcgp_parallel(250, 1, 1);
+	//test_pcgp_parallel_with_precalc(250, 6, 1);
 
 	//benchmark_parallel_optimal_search(64, 2, 0, 1);
 	//benchmark_parallel_optimal_search(128, 2, 0, 1);

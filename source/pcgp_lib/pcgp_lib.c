@@ -342,6 +342,7 @@ bool circulantBFS_6(unsigned int* restrict dist, int* restrict queue, const Grap
         const int u = queue[qr++];
         const int d = dist[u] + 1;
         if (cur_prop.diam != d) {
+			// minimal possible propery
 			const IntGraphProp temp_prop = { .diam = d, .dist_sum = cur_prop.dist_sum + d * (n - vc)};
             if (IntGraphProp_greater(&temp_prop, best_prop)) {
                 return false;

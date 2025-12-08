@@ -1,19 +1,42 @@
 #include"pcgp_parallel.hpp"
 
 #include<format>
+#include<exception>
+
 
 namespace pcgp {
+
+std::optional<IntGraphProp> calc_single_prop(const Graph& g) {
+	auto dist = std::make_unique<unsigned[]>(g.n);
+	auto queue = std::make_unique<int[]>(g.n);
+	IntGraphProp best_prop = IntGraphProp_infty();
+	IntGraphProp prop;
+	if (!circulantBFS_6(dist.get(), queue.get(), &g, &best_prop, &prop))
+		return {};
+	return prop;
+}
+
+
 std::optional<IntGraphProp> pcgp_parallel(std::vector<int>& s_res, int n, int k, int so, IntGraphProp init_prop, const unsigned int n_threads) {
+	s_res.clear();
+	if (so == k) {
+		s_res.resize(k);
+		std::iota(s_res.begin(), s_res.end(), 1);
+		return calc_single_prop(n, s_res);
+	}
 	std::vector<std::vector<int>> thread2_s_res(n_threads);
 	std::vector<IntGraphProp> thread2_best_prop(n_threads, init_prop);
 
+	for (auto& ts : thread2_s_res) {
+		ts.reserve(k);
+	}
 	// collect best graphs from each thread
 	const auto callback = [&](const unsigned int id, const Graph& g, const IntGraphProp& prop, const std::atomic<IntGraphProp>& best_prop_) {
 		(void)best_prop_; // not used here
 		IntGraphProp& best_prop = thread2_best_prop[id];
 		if (IntGraphProp_greater(&prop, &best_prop))
 			return;
-
+		
 		std::vector<int>& s_res = thread2_s_res[id];
 		if (IntGraphProp_less(&prop, &best_prop)) {
 			s_res.clear();
@@ -33,7 +56,7 @@ std::optional<IntGraphProp> pcgp_parallel(std::vector<int>& s_res, int n, int k,
 		n_threads
 	);
 
-	if (!res_prop)
+	if (!res_prop) [[unlikely]]
 		return {};
 
 	const IntGraphProp& best_prop = *res_prop;

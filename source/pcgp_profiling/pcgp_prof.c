@@ -314,9 +314,7 @@ bool found_graph1(void* ar, const Graph* g, const IntGraphProp* p)
     return true;
 }
 
-void test_search1() {
-    const int n = 10;
-    const int k = 3;
+void test_search1(int n, int k) {
     Graph g;
     g.s = (int*)malloc(k * sizeof(int));
     g.so = 0;
@@ -436,7 +434,7 @@ void test_search2(int n, int k, int so) {
 
 int main() {
     test_bfs();
-    test_search1();
+    test_search1(10, 3);
 
     for (int n = 10; n < 20; ++n) {
         for (int k = 2; k < 5; ++k) {

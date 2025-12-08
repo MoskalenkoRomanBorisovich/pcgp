@@ -5,10 +5,24 @@
 #include<execution>
 #include<optional>
 #include<concepts>
+#include<format>
 
 #include<pcgp_wrap.h>
 
 namespace pcgp {
+
+std::optional<IntGraphProp> calc_single_prop(const Graph& g);
+
+inline std::optional<IntGraphProp> calc_single_prop(int n, std::span<int> s) {
+	const Graph g{
+		.n = n,
+		.k = static_cast<int>(s.size()),
+		.so = 0,
+		.s = s.data(),
+	};
+	return calc_single_prop(g);
+}
+
 
 // simple parallel optimal search for circulant graphs
 template<std::invocable<unsigned int, const Graph&, const IntGraphProp&, const std::atomic<IntGraphProp>&> F>
@@ -49,7 +63,11 @@ std::optional<IntGraphProp> parallel_optimal_search_simple(
 	const auto get_next_index = [&next_index]() {return next_index.fetch_add(1, std::memory_order_relaxed); };
 	const size_t index_end = s1_range.size();
 
+	std::exception_ptr e_ptr;
+	std::mutex e_ptr_mutex;
+
 	const auto thread_fn = [&](const unsigned int thread_id_) {
+	try{
 		const unsigned int thread_id = thread_id_;
 		Graph g;
 		g.n = n;
@@ -88,6 +106,12 @@ std::optional<IntGraphProp> parallel_optimal_search_simple(
 				found_callback(thread_id, g, prop, best_prop);
 			} while (next_lexicographic_step(&g) && g.s[so] == s1);
 		}
+	}
+	catch (...) {
+		std::scoped_lock lock(e_ptr_mutex);
+		if (!e_ptr)
+			e_ptr = std::current_exception();
+	}
 	};
 
 	{
@@ -95,6 +119,10 @@ std::optional<IntGraphProp> parallel_optimal_search_simple(
 		for (unsigned int t = 0; t < num_threads; ++t) {
 			threads[t] = std::jthread([t, &thread_fn]() {thread_fn(t); });
 		}
+	}
+
+	if (e_ptr) [[unlikely]] {
+		std::rethrow_exception(e_ptr);
 	}
 
 	return best_prop.load();
@@ -261,7 +289,7 @@ std::optional<IntGraphProp> parallel_optimal_search_simple(
 std::optional<IntGraphProp> pcgp_parallel(
 	std::vector<int>& s_res, 
 	int n, int k, int so, 
-	IntGraphProp init_prop = IntGraphProp_inf(), 
+	IntGraphProp init_prop = IntGraphProp_infty(), 
 	const unsigned int n_threads = std::thread::hardware_concurrency()
 );
 
@@ -271,20 +299,22 @@ void write_results_csv(
 	int k,
 	const GraphProp& best_prop,
 	const std::span<const int> s_res,
+	bool header,
 	auto&& o_stream
 ) {
-	o_stream << "N,K,S,diameter,averageShortestPathLength,edges\n";
+	if (header) {
+		o_stream << "N,K,S,diameter,averageShortestPathLength,edges\n";
+	}
 	const size_t n_graphs = s_res.size() / k;
 	for (size_t i = 0; i < n_graphs; ++i) {
 		o_stream << n << "," << k << ",";
-		o_stream << "C(";
 		for (size_t j = 0; j < k; ++j) {
 			o_stream << s_res[i * k + j];
 			if (j + 1 < k)
 				o_stream << ";";
 		}
-		o_stream << "),";
-		o_stream << best_prop.diam << "," << best_prop.aspl << ",";
+		o_stream << ",";
+		o_stream << std::format("{},{:.16f},", best_prop.diam, best_prop.aspl);
 		o_stream << n_circulant_edges(n, std::span( s_res.data() + i * k, k ));
 		o_stream << '\n';
 	}

@@ -11,10 +11,14 @@ project(pcgp_project C)
 # endif()
 
 if (MSVC)
+    # Remove default /W3 before adding /W4
+    string(REPLACE "/W3" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+    string(REPLACE "/W3" "" CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
     add_compile_options(
         /W4
         /permissive-
-#        "$<$<CONFIG:Release>:/Ox /fp:fast>"
+        $<$<CONFIG:Release>:/O2>
+        $<$<CONFIG:Release>:/fp:fast>
     )
 else()
     add_compile_options(
