@@ -330,25 +330,25 @@ bool circulantBFS_6(unsigned int* restrict dist, int* restrict queue, const Grap
     const int n = g->n;
     const int k = g->k;
     dist[0] = 0;
-    for (int i = 1; i < n; i++) {
+    for (unsigned int i = 1; i < n; i++) {
         dist[i] = UINT_MAX;
     }
     queue[0] = 0;
-    int qr = 0;
-    int qw = 1;
-    int vc = 1;
+    unsigned int qr = 0;
+    unsigned int qw = 1;
+    unsigned int vc = 1;
     IntGraphProp cur_prop = { 0 };
     while (vc < n && qr != qw) {
         const int u = queue[qr++];
-        const int d = dist[u] + 1;
-        if (cur_prop.diam != d) {
-			// minimal possible propery
+        const unsigned int d = dist[u] + 1;
+		if (cur_prop.diam != d) {// attempt pruning when new depth is reached
+			// minimal possible property
 			const IntGraphProp temp_prop = { .diam = d, .dist_sum = cur_prop.dist_sum + d * (n - vc)};
             if (IntGraphProp_greater(&temp_prop, best_prop)) {
                 return false;
             }
         }
-        cur_prop.diam = d;
+		cur_prop.diam = d;
         for (int i = 0; i < k; i++) {
             VertPair uv = { 0 };
             const int s = g->s[i];
@@ -370,7 +370,7 @@ bool circulantBFS_6(unsigned int* restrict dist, int* restrict queue, const Grap
     if (vc < n) { // not all vertices were reached
         return false;
     }
-    if (n % 2 == 0) {
+	if (n % 2 == 0) { // adjust for middle vertex counted twice
         const int middle_vert = n / 2;
 		cur_prop.dist_sum -= dist[middle_vert];
     }

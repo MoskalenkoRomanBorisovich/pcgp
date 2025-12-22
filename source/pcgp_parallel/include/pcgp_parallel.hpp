@@ -308,12 +308,13 @@ void write_results_csv(
 	const size_t n_graphs = s_res.size() / k;
 	for (size_t i = 0; i < n_graphs; ++i) {
 		o_stream << n << "," << k << ",";
+		o_stream << "C(" << n << ";";
 		for (size_t j = 0; j < k; ++j) {
 			o_stream << s_res[i * k + j];
 			if (j + 1 < k)
 				o_stream << ";";
 		}
-		o_stream << ",";
+		o_stream << "),";
 		o_stream << std::format("{},{:.16f},", best_prop.diam, best_prop.aspl);
 		o_stream << n_circulant_edges(n, std::span( s_res.data() + i * k, k ));
 		o_stream << '\n';
