@@ -20,7 +20,7 @@ inline void adjVert(VertPair*p, Graph*g, int u, int i) {
 }
 
 // old function
-void circulantBFS(Arena*arena, GraphProp* prop, Graph*g);
+void circulantBFS(Arena*arena, GraphProp* prop, const Graph*g);
 
 // old function without modulo operation
 void circulantBFS_2(Arena*arena, GraphProp*prop, const Graph*g);

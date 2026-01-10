@@ -4,6 +4,7 @@
 #include <assert.h>
 #include <stdbool.h>
 #include <limits.h>
+#include <float.h>
 
 
 /// @brief circulant graph description
@@ -20,6 +21,10 @@ typedef struct {
     double  aspl; // avarage shortest path length
 } GraphProp;
 
+inline void GraphProp_infty(GraphProp* prop) {
+    prop->diam = INT_MAX;
+    prop->aspl = DBL_MAX;
+}
 
 /// @brief integer graph properties
 typedef struct {

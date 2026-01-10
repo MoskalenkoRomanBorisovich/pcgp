@@ -26,7 +26,7 @@ bool next_lexicographic_step(Graph* g)
 }
 
 
-void circulantBFS(Arena* restrict arena, GraphProp* restrict prop, Graph* restrict g) {
+void circulantBFS(Arena* restrict arena, GraphProp* restrict prop, const Graph* restrict g) {
     int* restrict dist = arenaAlloc(arena, g->n * sizeof(*dist));
     int* restrict queue = arenaAlloc(arena, g->n * sizeof(*queue));
     dist[0] = 0;
@@ -56,8 +56,7 @@ void circulantBFS(Arena* restrict arena, GraphProp* restrict prop, Graph* restri
         }
     }
     if (vc < g->n) {
-        prop->diam = INT_MAX;
-        prop->aspl = DBL_MAX;
+        GraphProp_infty(prop);
         return;
     }
     int diam = 0;
@@ -119,8 +118,7 @@ void circulantBFS_2(Arena* restrict arena, GraphProp* restrict prop, const Graph
         }
     }
     if (vc < n) {
-        prop->diam = INT_MAX;
-        prop->aspl = DBL_MAX;
+        GraphProp_infty(prop);
         return;
     }
     int diam = 0;
