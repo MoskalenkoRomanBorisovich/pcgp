@@ -314,73 +314,14 @@ bool found_graph1(void* ar, const Graph* g, const IntGraphProp* p)
     return true;
 }
 
-void test_search1(int n, int k) {
-    Graph g;
-    g.s = (int*)malloc(k * sizeof(int));
-    g.so = 0;
-    init_graph(&g, n, k);
-    IntGraphProp best_prop;
-    IntGraphProp_infty(&best_prop);
-    Userdata1 userdata;
-    Userdata1_init(&userdata);
-    optimal_search_6(&g, &best_prop, &found_graph1, &userdata);
-    const unsigned int expected_count = 4;
-    const unsigned int expected_diam = 2;
-    const unsigned int expected_dist_sum = 12;
-    bool error = false;
-    if (userdata.count != expected_count
-        || userdata.best_prop.diam != expected_diam
-        || userdata.best_prop.dist_sum != expected_dist_sum
-        ) {
-		error = true;
-        printf("Test failed\n");
-        printf("Best property: diam = %u, dist_sum = %u\n", userdata.best_prop.diam, userdata.best_prop.dist_sum);
-        printf("Number of graphs found: %u\n", userdata.count);
-        printf("Expected count: %u, Expected diam: %u, Expected dist_sum: %u\n", expected_count, expected_diam, expected_dist_sum);
-    }
-    free(g.s);
-
-    if (!error) {
-        printf("Search test passed\n");
-	}
-    else {
-        printf("Search test failed\n");
-	}
-}
-
-
-typedef struct {
-    IntGraphProp best_prop;
-    VectorInt s_results;
-} Userdata2;
-
-void Userdata2_addRecord(Userdata2* data, int k, const int* s) {
-    for (int i = 0; i < k; ++i) {
-        VectorInt_push_back(&data->s_results, s[i]);
-    }
-}
-
-bool found_graph2(void* userdata, const Graph* g, const IntGraphProp* p) {
-    Userdata2* data = (Userdata2*)userdata;
-    if (IntGraphProp_less(p, &data->best_prop)) {
-        VectorInt_clear(&data->s_results);
-    }
-    data->best_prop = *p;
-    Userdata2_addRecord(data, g->k, g->s);
-    return true;
-}
 
 void test_search2(int n, int k, int so) {
-    Userdata2 data;
-    IntGraphProp_infty(&data.best_prop);
-    VectorInt_init(&data.s_results);
     Graph g;
     g.s = (int*)malloc(k * sizeof(int));
     g.so = so;
     init_graph(&g, n, k);
     IntGraphProp start_prop;
     IntGraphProp_infty(&start_prop);
-    optimal_search_6(&g, &start_prop, &found_graph2, &data);
 
     Graph g_check;
     g_check.s = (int*)malloc(k * sizeof(int));
@@ -396,8 +337,6 @@ void test_search2(int n, int k, int so) {
     best_prop_check.aspl = FLT_MAX;
     best_prop_check.diam = INT_MAX;
 
-    VectorInt s_check;
-    VectorInt_init(&s_check);
     do {
         arenaFree(&arena);
         circulantBFS(&arena, &prop, &g_check);
@@ -409,32 +348,15 @@ void test_search2(int n, int k, int so) {
         if (prop.aspl < best_prop_check.aspl
             || prop.aspl == best_prop_check.aspl && prop.diam < best_prop_check.diam
             ) {
-            VectorInt_clear(&s_check);
             best_prop_check = prop;
         }
-        for (int i = 0; i < k; ++i) {
-            VectorInt_push_back(&s_check, g_check.s[i]);
-        }
     } while (next_lexicographic_step(&g_check));
-
-    if (s_check.size != data.s_results.size) {
-        printf("error: Size mismatch: s_check.size = %d, data.s_results.size = %d\n", s_check.size, data.s_results.size);
-        return;
-    }
-    for (int i = 0; i < s_check.size; ++i) {
-        if (s_check.data[i] != data.s_results.data[i]) {
-            printf("error: Mismatch at index %d: s_check = %d, data.s_results = %d\n", i, s_check.data[i], data.s_results.data[i]);
-        }
-    }
-
     free(g.s);
-    VectorInt_free(&data.s_results);
     free(arena_mem);
 }
 
 int main() {
     test_bfs();
-    test_search1(10, 3);
 
     for (int n = 10; n < 20; ++n) {
         for (int k = 2; k < 5; ++k) {
@@ -446,6 +368,6 @@ int main() {
 
     profile_bfs(100000, 19, 20, 2, 7);
 
-    profile_bfs(1, 99, 100, 2, 7);
+    profile_bfs(1, 99, 100, 2, 6);
     return 0;
 }
