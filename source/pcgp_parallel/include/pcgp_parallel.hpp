@@ -11,8 +11,16 @@
 
 namespace pcgp {
 
+/// @brief calculate properties of a single circulant graph
+/// @param g graph
+/// @return properties
 std::optional<IntGraphProp> calc_single_prop(const Graph& g);
 
+
+/// @brief calculate properties of a single circulant graph
+/// @param n number of nodes
+/// @param s jumps
+/// @return properties
 inline std::optional<IntGraphProp> calc_single_prop(int n, std::span<int> s) {
 	const Graph g{
 		.n = n,
@@ -24,7 +32,14 @@ inline std::optional<IntGraphProp> calc_single_prop(int n, std::span<int> s) {
 }
 
 
-// simple parallel optimal search for circulant graphs
+/// @brief searches for circulants with least mean distances and diameters
+/// @param n number of nodes
+/// @param k number of jumps
+/// @param so number of fixed jumps
+/// @param start_prop initial guess for best graph props (for optimal BFS pruning)
+/// @param found_callback handler of newly found graphs. Takes in id of the thread, graph, properties, best properties over all threads
+/// @param num_threads number of concurrent threads to run
+/// @return properties of the best found graphs
 template<std::invocable<unsigned int, const Graph&, const IntGraphProp&, const std::atomic<IntGraphProp>&> F>
 std::optional<IntGraphProp> parallel_optimal_search_simple(
 	int n,
@@ -128,164 +143,14 @@ std::optional<IntGraphProp> parallel_optimal_search_simple(
 	return best_prop.load();
 }
 
-
-
-
-//// simple parallel optimal search for circulant graphs
-//std::optional<IntGraphProp> parallel_optimal_search_simple(
-//	int n,
-//	int k,
-//	int so, // number of fiexed jumps
-//	const IntGraphProp& start_prop,
-//	auto&& found_callback// always called under mutex when a new best graph is found
-//) {
-//	if (graphCheck_impl(n, k, so)) [[unlikely]] {
-//		assert(false);
-//		return {};
-//	}
-//	const size_t ks = k - so;
-//	const size_t n_2 = (n + 1) / 2;
-//
-//	// range of first variable jump
-//	std::ranges::iota_view s1_range ((int)so + 1, (int)(n_2 - ks + 2));
-//	const auto init_graph = [&](int s1, Graph& g) {
-//		g.n = n;
-//		g.k = k;
-//		g.so = so;
-//		// set fixed jumps
-//		for (int i = 0; i < so; ++i) {
-//			g.s[i] = i + 1;
-//		}
-//		g.s[so] = s1;
-//		for (size_t i = so + 1; i < k; ++i) {
-//			g.s[i] = g.s[i - 1] + 1;
-//		}
-//	};
-//
-//	IntGraphProp best_prop = start_prop;
-//	std::mutex prop_mutex;
-//	// for each value of the first variable jump, generate all circulants with that first jump and perform parallel optimal search
-//	std::for_each(std::execution::par, s1_range.begin(), s1_range.end(), [&](const int s1) {
-//		const std::unique_ptr<int[]> s_data = std::make_unique<int[]>(k);
-//		Graph g;
-//		g.s = s_data.get();
-//		init_graph(s1, g);
-//		// init bfs data
-//		const std::unique_ptr<unsigned int[]> dist_buf = std::make_unique<unsigned int[]>(n);
-//		const std::unique_ptr<int[]> queue_buf = std::make_unique<int[]>(n);
-//		IntGraphProp prop;
-//		IntGraphProp best_prop_local;
-//		{
-//			std::lock_guard lock(prop_mutex);
-//			best_prop_local = best_prop;
-//		}
-//		do {
-//			if (!circulantBFS_6(dist_buf.get(), queue_buf.get(), &g, &best_prop_local, &prop))
-//				continue;
-//
-//			if (IntGraphProp_greater(&prop, &best_prop_local))
-//				continue;
-//			{
-//				std::lock_guard lock(prop_mutex);
-//				if (IntGraphProp_greater(&prop, &best_prop)) {
-//					best_prop_local = best_prop;
-//					continue;
-//				}
-//				found_callback(g, prop);
-//				best_prop = prop;
-//			}
-//			best_prop_local = prop;
-//		} while (next_lexicographic_step(&g) && g.s[so] == s1);
-//	});
-//	
-//	return best_prop;
-//}
-//
-//
-//std::optional<IntGraphProp> parallel_optimal_search_simple_2(
-//	int n,
-//	int k,
-//	int so,
-//	const IntGraphProp& start_prop,
-//	auto&& found_callback,
-//	size_t num_threads = std::thread::hardware_concurrency()
-//) {
-//	if (graphCheck_impl(n, k, so)) [[unlikely]] {
-//		assert(false);
-//		return {};
-//	}
-//	
-//	const size_t ks = k - so;
-//	const size_t n_2 = (n + 1) / 2;
-//
-//	// range of first variable jump
-//	std::ranges::iota_view s1_range((int)so + 1, (int)(n_2 - ks + 2));
-//	const auto init_s = [](int s1, Graph& g) {
-//		// set fixed jumps
-//		for (int i = 0; i < g.so; ++i) {
-//			g.s[i] = i + 1;
-//		}
-//		g.s[g.so] = s1;	
-//		for (size_t i = g.so + 1; i < g.k; ++i) {
-//			g.s[i] = g.s[i - 1] + 1;
-//		}
-//	};
-//
-//	IntGraphProp best_prop = start_prop;
-//	std::mutex prop_mutex;
-//
-//	std::atomic<size_t> next_index(0);
-//
-//	const auto thread_fn = [&]() {
-//		Graph g;
-//		g.n = n;
-//		g.k = k;
-//		g.so = so;
-//		const std::unique_ptr<int[]> s_data = std::make_unique<int[]>(k);
-//		g.s = s_data.get();
-//
-//		// init bfs data
-//		const std::unique_ptr<unsigned int[]> dist_buf = std::make_unique<unsigned int[]>(n);
-//		const std::unique_ptr<int[]> queue_buf = std::make_unique<int[]>(n);
-//		IntGraphProp prop;
-//		IntGraphProp best_prop_local; // local best to minimize locking
-//		
-//		for (size_t index = next_index.fetch_add(1), index_end = s1_range.size(); index < index_end; index = next_index.fetch_add(1)) {
-//			const int s1 = s1_range[index]; // simple work stealing
-//			{ // regularly update local best
-//				std::lock_guard lock(prop_mutex);
-//				best_prop_local = best_prop;
-//			}
-//			init_s(s1, g);
-//			do {
-//				if (!circulantBFS_6(dist_buf.get(), queue_buf.get(), &g, &best_prop_local, &prop))
-//					continue;
-//
-//				if (IntGraphProp_greater(&prop, &best_prop_local))
-//					continue;
-//				{
-//					std::lock_guard lock(prop_mutex);
-//					if (IntGraphProp_greater(&prop, &best_prop)) {
-//						best_prop_local = best_prop;
-//						continue;
-//					}
-//					found_callback(g, prop);
-//					best_prop = prop;
-//				}
-//				best_prop_local = prop; // updated when a new global best is found
-//			} while (next_lexicographic_step(&g) && g.s[so] == s1);
-//		}
-//	};
-//
-//	std::unique_ptr<std::jthread[]> threads = std::make_unique<std::jthread[]>(num_threads);
-//	for (size_t t = 0; t < num_threads; ++t) {
-//		threads[t] = std::jthread(thread_fn);
-//	}
-//	
-//	return best_prop;
-//}
-
-
+/// @brief finds circulants with least mean distance and diameter
+/// @param s_res output jumps of found graphs
+/// @param n number of nodes
+/// @param k number of jumps
+/// @param so number of fixed jumps
+/// @param init_prop guarantied minimum best prop (for optimal BFS pruning)
+/// @param n_threads number of concurrent threads
+/// @return properties of the best graphs
 std::optional<IntGraphProp> pcgp_parallel(
 	std::vector<int>& s_res, 
 	int n, int k, int so, 
@@ -293,7 +158,13 @@ std::optional<IntGraphProp> pcgp_parallel(
 	const unsigned int n_threads = std::thread::hardware_concurrency()
 );
 
-
+/// @brief writes results in csv format
+/// @param n number of nodes
+/// @param k number of jumps
+/// @param best_prop properties of graphs
+/// @param s_res jumps of graphs 
+/// @param header if true adds header
+/// @param o_stream output stream
 void write_results_csv(
 	int n,
 	int k,

@@ -326,7 +326,7 @@ bool circulantBFS_5_impl(unsigned int* restrict dist, int* restrict queue, const
 }
 
 
-bool circulantBFS_6(unsigned int* restrict dist, int* restrict queue, const Graph* restrict g, IntGraphProp* restrict best_prop, IntGraphProp* restrict prop) {
+bool circulantBFS_6(unsigned int* restrict dist, int* restrict queue, const Graph* restrict g, const IntGraphProp* restrict best_prop, IntGraphProp* restrict prop) {
     const int n = g->n;
     const int k = g->k;
     dist[0] = 0;

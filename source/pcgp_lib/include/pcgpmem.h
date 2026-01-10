@@ -5,8 +5,10 @@
 #include <stdint.h>
 #include <stddef.h>
 
+/// @brief memory alignment size
 #define PCGPMEM_ALIGN (2 * sizeof(void *))
 
+/// @brief arena alocator
 typedef struct {
 	void* start;
 	void* end;
