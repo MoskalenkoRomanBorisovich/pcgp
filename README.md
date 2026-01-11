@@ -1,9 +1,19 @@
-Usage
-=====
+# Description
+pcgp is an application for finding optimal circulant graphs.
 
-Edit and run pcgp.bat script.
+# Build
+Build using CMake
 
-Build
-=====
+# Usage
 
-Compile all .c files with any C99 compiler. No dependencies.
+## pcgpp 
+Application is found at source/pcgpp_app
+To see help run /pcgpp_app -h
+
+## pcgp
+Application is found at source/pcgp_app
+Change parameters in pcgp.bat and run
+
+# Libraries
+pcgp_lib - C librariy with algorithms for calculating circulant properties
+pcgp_parallel - Cxx library with parallel algorithms for optimal circulant search.
