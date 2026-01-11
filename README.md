@@ -14,6 +14,14 @@ To see help run /pcgpp_app -h
 Application is found at source/pcgp_app
 Change parameters in pcgp.bat and run
 
+# Verification
+In pcgp_test we cross reference different implemented algorithms with each other.
+And compare results with other researches.
+
 # Libraries
 pcgp_lib - C librariy with algorithms for calculating circulant properties
 pcgp_parallel - Cxx library with parallel algorithms for optimal circulant search.
+
+## Documentation
+After building documenteatin should be generated docs/html should be created.
+Open docs/html/index.html to see the documentation.
