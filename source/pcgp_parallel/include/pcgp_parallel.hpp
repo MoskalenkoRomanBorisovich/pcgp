@@ -59,7 +59,7 @@ std::optional<IntGraphProp> parallel_optimal_search_simple(
 	const size_t n_2 = (n + 1) / 2;
 
 	// range of first variable jump
-	std::ranges::iota_view s1_range((int)so + 1, (int)(n_2 - ks + 2));
+	const std::ranges::iota_view s1_range((int)so + 1, (int)(n_2 - ks + 2));
 	const auto init_s = [](int s1, Graph& g) {
 		// set fixed jumps
 		for (int i = 0; i < g.so; ++i) {
@@ -171,7 +171,7 @@ void write_results_csv(
 	const GraphProp& best_prop,
 	const std::span<const int> s_res,
 	bool header,
-	auto&& o_stream
+	auto& o_stream
 ) {
 	if (header) {
 		o_stream << "N,K,S,diameter,averageShortestPathLength,edges\n";

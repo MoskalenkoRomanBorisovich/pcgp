@@ -4,6 +4,24 @@
 #include<exception>
 
 
+namespace {
+
+template<class T>
+struct alignas(std::hardware_destructive_interference_size) cache_aligned {
+	T value;
+	// ergonomic access
+	constexpr T& get()							noexcept { return value; }
+	constexpr T const& get() const				noexcept { return value; }
+
+	constexpr T* operator->()					noexcept { return &value; }
+	constexpr T const* operator->() const		noexcept { return &value; }
+
+	constexpr T& operator*()					noexcept { return value; }
+	constexpr T const& operator*() const		noexcept { return value; }
+};
+
+}
+
 namespace pcgp {
 
 std::optional<IntGraphProp> calc_single_prop(const Graph& g) {
@@ -24,20 +42,22 @@ std::optional<IntGraphProp> pcgp_parallel(std::vector<int>& s_res, int n, int k,
 		std::iota(s_res.begin(), s_res.end(), 1);
 		return calc_single_prop(n, s_res);
 	}
-	std::vector<std::vector<int>> thread2_s_res(n_threads);
-	std::vector<IntGraphProp> thread2_best_prop(n_threads, init_prop);
+	static_assert(sizeof(cache_aligned<IntGraphProp>) >= std::hardware_destructive_interference_size);
+
+	std::vector<cache_aligned<std::vector<int>>> thread2_s_res(n_threads);
+	std::vector<cache_aligned<IntGraphProp>> thread2_best_prop(n_threads, cache_aligned( init_prop ));
 
 	for (auto& ts : thread2_s_res) {
-		ts.reserve(k);
+		ts->reserve(k);
 	}
 	// collect best graphs from each thread
 	const auto callback = [&](const unsigned int id, const Graph& g, const IntGraphProp& prop, const std::atomic<IntGraphProp>& best_prop_) {
 		(void)best_prop_; // not used here
-		IntGraphProp& best_prop = thread2_best_prop[id];
+		IntGraphProp& best_prop = thread2_best_prop[id].get();
 		if (IntGraphProp_greater(&prop, &best_prop))
 			return;
 		
-		std::vector<int>& s_res = thread2_s_res[id];
+		std::vector<int>& s_res = thread2_s_res[id].get();
 		if (IntGraphProp_less(&prop, &best_prop)) {
 			s_res.clear();
 			best_prop = prop;
@@ -65,14 +85,14 @@ std::optional<IntGraphProp> pcgp_parallel(std::vector<int>& s_res, int n, int k,
 	std::vector<int> res;
 	for (unsigned int t = 0; t < n_threads; ++t) {
 		assert(!IntGraphProp_less(&thread2_best_prop[t], &best_prop));
-		if (!IntGraphProp_equal(&thread2_best_prop[t], &best_prop)) {
+		if (!IntGraphProp_equal(&*thread2_best_prop[t], &best_prop)) {
 			continue;
 		}
 		const size_t cur_size = res.size();
-		res.resize(cur_size+ thread2_s_res[t].size());
+		res.resize(cur_size+ thread2_s_res[t].get().size());
 		std::copy(
-			std::make_move_iterator(thread2_s_res[t].begin()),
-			std::make_move_iterator(thread2_s_res[t].end()),
+			std::make_move_iterator(thread2_s_res[t].get().begin()),
+			std::make_move_iterator(thread2_s_res[t].get().end()),
 			res.begin() + cur_size
 		);
 	}
@@ -82,7 +102,7 @@ std::optional<IntGraphProp> pcgp_parallel(std::vector<int>& s_res, int n, int k,
 	const size_t n_graphs = res.size() / k;
 	std::vector<size_t> order(n_graphs);
 	std::iota(order.begin(), order.end(), 0);
-	std::sort(std::execution::par_unseq, order.begin(), order.end(), [&](size_t a, size_t b) {
+	std::sort(order.begin(), order.end(), [&](size_t a, size_t b) {
 		return std::lexicographical_compare(
 			res.begin() + a * k,
 			res.begin() + (a + 1) * k,

@@ -8,6 +8,7 @@
 #include <optional>
 #include <thread>
 #include <chrono>
+#include <future>
 
 #include <pcgp_parallel.hpp>
 
@@ -201,10 +202,11 @@ std::filesystem::path get_file_path(const std::filesystem::path& dir_path, int n
 }
 
 void write_results(int n, int k, const IntGraphProp& best_prop, const std::vector<int>& s_res, const Options& opt) {
-    const bool write_header = k == opt.k_start;
     GraphProp prop;
     calcGraphProp(n, &best_prop, &prop);
     if (opt.out_dir.empty()) {
+        // write header only once in console 
+        const bool write_header = k == opt.k_start && n == opt.n_start;
         pcgp::write_results_csv(n, k, prop, s_res, write_header, std::cout);
     }
     else {
@@ -213,7 +215,7 @@ void write_results(int n, int k, const IntGraphProp& best_prop, const std::vecto
         if (!fs) [[unlikely]] {
             throw std::runtime_error("Failed to open output file: " + fpath.string());
         }
-        pcgp::write_results_csv(n, k, prop, s_res, write_header, fs);
+        pcgp::write_results_csv(n, k, prop, s_res, true, fs);
     }
 }
 
@@ -224,9 +226,10 @@ bool run_pcgpp(const Options& opt) {
     if (!opt.out_dir.empty()) {
         check_and_create_outdir(opt.out_dir);
 	}
+    std::future<void> write_future;
+
 
     const auto t_start = std::chrono::high_resolution_clock::now();
-    std::vector<int> s_res;
     for (int n = opt.n_start; n <= opt.n_end; ++n) {
         IntGraphProp best_prop = IntGraphProp_infty();
         for (int k = opt.k_start, k_end = opt.k_end + 1; k < k_end; ++k) {
@@ -234,7 +237,7 @@ bool run_pcgpp(const Options& opt) {
                 // invalid combination
                 continue;
             }
-            s_res.clear();
+            std::vector<int> s_res;
             const auto new_best_prop = pcgp::pcgp_parallel(
                 s_res,
                 n,
@@ -249,9 +252,25 @@ bool run_pcgpp(const Options& opt) {
             // update best prop
             best_prop = *new_best_prop;
 
-			write_results(n, k, best_prop, s_res, opt);
+            if (write_future.valid()) {
+                write_future.get();
+            }
+            write_future = std::async(
+                std::launch::async,
+                write_results,
+                n,
+                k,
+                best_prop,
+                std::move(s_res),
+                std::cref(opt)
+            );
         }
     }
+    // Wait for the last write to finish
+    if (write_future.valid()) {
+        write_future.get();
+    }
+
     const auto t_end = std::chrono::high_resolution_clock::now();
     if (opt.benchmark) {
         const std::chrono::duration<double> elapsed = t_end - t_start;
