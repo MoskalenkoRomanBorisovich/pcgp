@@ -325,8 +325,8 @@ bool circulantBFS_5_impl(unsigned int* restrict dist, int* restrict queue, const
 
 
 bool circulantBFS_6(unsigned int* restrict dist, int* restrict queue, const Graph* restrict g, const IntGraphProp* restrict best_prop, IntGraphProp* restrict prop) {
-    const int n = g->n;
-    const int k = g->k;
+    const unsigned int n = g->n;
+    const unsigned int k = g->k;
     dist[0] = 0;
     for (unsigned int i = 1; i < n; i++) {
         dist[i] = UINT_MAX;
@@ -347,7 +347,7 @@ bool circulantBFS_6(unsigned int* restrict dist, int* restrict queue, const Grap
             }
         }
 		cur_prop.diam = d;
-        for (int i = 0; i < k; i++) {
+        for (unsigned int i = 0; i < k; i++) {
             VertPair uv = { 0 };
             const int s = g->s[i];
             adjVertFast(&uv, s, u, n);
@@ -375,6 +375,107 @@ bool circulantBFS_6(unsigned int* restrict dist, int* restrict queue, const Grap
     *prop = cur_prop;
     return true;
 }
+
+
+bool circulantBFS_7(unsigned int* restrict dist, int* restrict queue, const Graph* restrict g, IntGraphProp* restrict prop) {
+    const unsigned int n = g->n;
+    const unsigned int k = g->k;
+    dist[0] = 0;
+    for (unsigned int i = 1; i < n; i++) {
+        dist[i] = UINT_MAX;
+    }
+    queue[0] = 0;
+    unsigned int qr = 0;
+    unsigned int qw = 1;
+    unsigned int vc = 1;
+    IntGraphProp cur_prop = { 0 };
+    while (vc < n && qr != qw) {
+        const int u = queue[qr++];
+        const unsigned int d = dist[u] + 1;
+        cur_prop.diam = d;
+        for (unsigned int i = 0; i < k; i++) {
+            VertPair uv = { 0 };
+            const int s = g->s[i];
+            adjVertFast(&uv, s, u, n);
+            if (dist[uv.u] == UINT_MAX) {
+                queue[qw++] = uv.u;
+                dist[uv.u] = dist[mirrVert(uv.u, n)] = d;
+                vc += 2;
+                cur_prop.dist_sum += d << 1;
+            }
+            if (dist[uv.v] == UINT_MAX) {
+                queue[qw++] = uv.v;
+                dist[uv.v] = dist[mirrVert(uv.v, n)] = d;
+                vc += 2;
+                cur_prop.dist_sum += d << 1;
+            }
+        }
+    }
+    if (vc < n) { // not all vertices were reached
+        return false;
+    }
+    if (n % 2 == 0) { // adjust for middle vertex counted twice
+        const int middle_vert = n / 2;
+        cur_prop.dist_sum -= dist[middle_vert];
+    }
+    *prop = cur_prop;
+    return true;
+}
+
+
+bool circulantBFS_8(unsigned int* restrict dist, int* restrict queue, const Graph* restrict g, const IntGraphProp* restrict best_prop, IntGraphProp* restrict prop) {
+    const unsigned int n = g->n;
+    const unsigned int k = g->k;
+    dist[0] = 0;
+    for (unsigned int i = 1; i < n; i++) {
+        dist[i] = UINT_MAX;
+    }
+    queue[0] = 0;
+    bool found_mid = n % 2 != 0;
+    const int mid_vert = found_mid ? 0 : n / 2;
+    unsigned int qr = 0;
+    unsigned int qw = 1;
+    unsigned int vc = 1;
+    IntGraphProp cur_prop = { 0 };
+    while (vc < n && qr != qw) {
+        const int u = queue[qr++];
+        const unsigned int d = dist[u] + 1;
+        if (cur_prop.diam != d) {// attempt pruning when new depth is reached
+            if (!found_mid && dist[mid_vert] != UINT_MAX) { // correct for middle point being counted twice
+                vc -= 1;
+                found_mid = true;
+            }
+            cur_prop.diam = d;
+            cur_prop.dist_sum += (n - vc);
+            if (IntGraphProp_greater(&cur_prop, best_prop)) {
+                return false;
+            }
+        }
+        for (unsigned int i = 0; i < k; i++) {
+            VertPair uv = { 0 };
+            const int s = g->s[i];
+            adjVertFast(&uv, s, u, n);
+            if (dist[uv.u] == UINT_MAX) {
+                queue[qw++] = uv.u;
+                dist[uv.u] = dist[mirrVert(uv.u, n)] = d;
+                vc += 2;
+            }
+            if (dist[uv.v] == UINT_MAX) {
+                queue[qw++] = uv.v;
+                dist[uv.v] = dist[mirrVert(uv.v, n)] = d;
+                vc += 2;
+            }
+        }
+    }
+    if (vc < n) { // not all vertices were reached
+        return false;
+    }
+    *prop = cur_prop;
+    return true;
+}
+
+
+
 
 
 typedef struct {
@@ -492,5 +593,3 @@ int circulantKernighanLin(Arena* restrict arena, Graph* restrict graph) {
     } while (G_sum_max > 0);
     return KernighanLinPartitionCost(graph, P);
 }
-
-

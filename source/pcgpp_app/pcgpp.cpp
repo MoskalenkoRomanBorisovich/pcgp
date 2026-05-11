@@ -238,7 +238,9 @@ bool run_pcgpp(const Options& opt) {
                 continue;
             }
             std::vector<int> s_res;
-            const auto new_best_prop = pcgp::pcgp_parallel(
+            //const auto new_best_prop = pcgp::pcgp_parallel(
+            const auto new_best_prop = pcgp::pcgp_parallel_isomorph(
+            //const auto new_best_prop = pcgp::pcgp_parallel_isomorph_full(
                 s_res,
                 n,
                 k,

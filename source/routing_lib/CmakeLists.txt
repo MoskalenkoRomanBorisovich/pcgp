@@ -1,23 +1,23 @@
 cmake_minimum_required(VERSION 3.10)
 
-project(pcgp_parallel CXX)
+project(routing CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_library(${PROJECT_NAME}
-    pcgp_parallel.cpp
- "include/pcgp_wrap.h" "adam_isomorphism.cpp")
+    routing.cpp
+ "include/routing.h" "test/routing_test.cpp")
 
 target_link_libraries ( ${PROJECT_NAME}
     PUBLIC
         pcgp
+        pcgp_parallel
 )
 
 target_include_directories(${PROJECT_NAME}
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
-
 
 add_subdirectory("test")

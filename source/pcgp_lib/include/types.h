@@ -40,6 +40,14 @@ inline void IntGraphProp_infty(IntGraphProp* prop) {
     prop->dist_sum = UINT_MAX;
 }
 
+/// @brief initialize maximum possible property values
+/// @param prop output
+inline bool IntGraphProp_is_infty(const IntGraphProp* prop) {
+    IntGraphProp inf;
+    IntGraphProp_infty(&inf);
+    return prop->diam == inf.diam && prop->dist_sum == inf.dist_sum;
+}
+
 /// @brief return true if props are equal
 inline bool IntGraphProp_equal(const IntGraphProp* a, const IntGraphProp* b) {
     if (a->dist_sum != b->dist_sum)
@@ -68,6 +76,10 @@ inline bool IntGraphProp_greater(const IntGraphProp* a, const IntGraphProp* b) {
 /// @brief convert integer properties to real properties
 inline void calcGraphProp(int n, const IntGraphProp* int_prop, GraphProp* prop) {
     assert(n > 1);
+    if (IntGraphProp_is_infty(int_prop)) {
+        GraphProp_infty(prop);
+        return;
+    }
     prop->diam = int_prop->diam;
     prop->aspl = (double)int_prop->dist_sum / (n - 1);
 }

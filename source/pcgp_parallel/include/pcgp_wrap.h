@@ -1,4 +1,6 @@
 #pragma once
+#include <span>
+
 
 extern "C" {
 #include <pcgp.h>
@@ -7,6 +9,12 @@ extern "C" {
 inline IntGraphProp IntGraphProp_infty() noexcept {
 	IntGraphProp prop;
 	IntGraphProp_infty(&prop);
+	return prop;
+}
+
+inline GraphProp GraphProp_infty() noexcept {
+	GraphProp prop;
+	GraphProp_infty(&prop);
 	return prop;
 }
 

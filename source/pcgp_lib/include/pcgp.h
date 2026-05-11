@@ -14,7 +14,7 @@ bool next_lexicographic_step(Graph* g);
 /// @param g graph
 /// @param u current vert
 /// @param i id of the jump
-inline void adjVert(VertPair*p, Graph*g, int u, int i) {
+inline void adjVert(VertPair*p, const Graph*g, int u, int i) {
     p->u = (u + g->s[i]) % g->n;
     p->v = (u - g->s[i] + g->n) % g->n;
 }
@@ -45,6 +45,25 @@ bool circulantBFS_5_impl(unsigned int*dist, int*queue, const IntGraphProp*best_p
 bool circulantBFS_6(unsigned int*dist, int*queue, const Graph*g, const IntGraphProp*best_prop, IntGraphProp*prop);
 
 
+/// @brief find circulant graph properties 
+/// @param dist distance buffer of size g.n
+/// @param queue queue buffer of size g.n
+/// @param g circulant graph
+/// @param prop output found properties
+/// @return false if search was pruned due to exceeding best_prop values
+bool circulantBFS_7(unsigned int* dist, int* queue, const Graph* g, IntGraphProp* prop);
+
+
+/// @brief same as circulantBFS_6 but faster pruning prediction
+/// @param dist distance buffer of size g.n
+/// @param queue queue buffer of size g.n
+/// @param g circulant graph
+/// @param best_prop minimum required properties (for BFS pruning)
+/// @param prop output found properties
+/// @return false if search was pruned due to exceeding best_prop values
+bool circulantBFS_8(unsigned int* dist, int* queue, const Graph* g, const IntGraphProp* best_prop, IntGraphProp* prop);
+
+
 /// @brief Krninghan Lin graph partition
 /// @param arena arena alocator
 /// @param graph graph
@@ -72,5 +91,16 @@ inline bool graphCheck(Graph* g) {
 	return graphCheck_impl(g->n, g->k, g->so);
 }
 
+/// @brief equivalent to v % n but only applicable when v is in [-n, 2n) range
+/// @param v vert id 
+/// @param n number of verts
+/// @return new vert id
+inline int normalize_vert_fast(int v, int n) {
+    if (v < 0)
+        v += n;
+    if (v >= n)
+        v -= n;
+    return v;
+}
 
 #endif

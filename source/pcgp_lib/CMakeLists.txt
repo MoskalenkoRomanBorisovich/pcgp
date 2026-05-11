@@ -9,7 +9,7 @@ add_library(${PROJECT_NAME}
     pcgp_lib.c
     pcgpmem.c
     search.c
-)
+ )
 
 target_include_directories(${PROJECT_NAME}
     PUBLIC

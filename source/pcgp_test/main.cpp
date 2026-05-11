@@ -65,6 +65,20 @@ GraphProp run_bfs_6(const Graph& g) {
 	return res;
 }
 
+// wrapper for test
+GraphProp run_bfs_8(const Graph& g) {
+	std::unique_ptr<unsigned int[]> dist_buf = std::make_unique<unsigned int[]>(g.n);
+	std::unique_ptr<int[]> queue = std::make_unique<int[]>(g.n);
+	const IntGraphProp best_prop = IntGraphProp_infty();
+	IntGraphProp prop;
+	GraphProp res;
+	if (circulantBFS_8(dist_buf.get(), queue.get(), &g, &best_prop, &prop))
+		calcGraphProp(g.n, &prop, &res);
+	else
+		GraphProp_infty(&res);
+	return res;
+}
+
 GraphProp run_bfs(const int n, std::span<int> s) {
 	const Graph g{
 		.n = n,
@@ -97,7 +111,7 @@ void bfs_test1() {
 
 // check taht results match
 void bfs_test2() {
-	constexpr int n_min = 3, n_max = 10;
+	constexpr int n_min = 3, n_max = 20;
 	constexpr double tol = 1e-6;
 	std::unique_ptr<int[]> s_data = std::make_unique<int[]>(n_max);
 	for (int n = n_min; n < n_max; ++n) {
@@ -111,27 +125,24 @@ void bfs_test2() {
 			for (int i = 0; i < k; ++i) {
 				g.s[i] = i + 1;
 			}
+			do {
+				const GraphProp p1 = run_bfs(g);
+				const GraphProp p2 = run_bfs_2(g);
+				const GraphProp p6 = run_bfs_6(g);
+				const GraphProp p8 = run_bfs_8(g);
+				validate(are_close(p1, p2, tol));
+				validate(are_close(p1, p6, tol));
+				validate(are_close(p1, p8, tol));
+			} while (next_lexicographic_step(&g));
 		}
-		do {
-			const GraphProp p1 = run_bfs(g);
-			const GraphProp p2 = run_bfs_2(g);
-			const GraphProp p6 = run_bfs_6(g);
-			validate(are_close(p1, p2, tol));
-			validate(are_close(p1, p6, tol));
-		} while (next_lexicographic_step(&g));
 	}
 }
 
 
 GraphProp search_prop_only(int n, int k, int so, unsigned int threads) {
-	const auto callbalk = [](const unsigned int id, const Graph& g, const IntGraphProp& prop, const std::atomic<IntGraphProp>& best_prop) {
-		(void)id;
-		(void)g;
-		(void)prop;
-		(void)best_prop;
-	};
+	
 	const IntGraphProp min_best_prop = IntGraphProp_infty();
-	const auto res = pcgp::parallel_optimal_search_simple(n, k, so, min_best_prop, callbalk, threads);
+	const auto res = pcgp::pcgp_prop(n, k, so, min_best_prop, threads);
 	validate(!!res);
 	GraphProp out;
 	calcGraphProp(n, &(*res), &out);
@@ -161,10 +172,6 @@ void validate_search_props(int n, int k, int so, GraphProp expected_result, doub
 
 void search_test2()
 {
-	validate_search_props(718, 3, 1, { 9, 6.06415620641562 });
-	validate_search_props(160, 4, 1, { 4, 2.9056603773584904 });
-	validate_search_props(279, 4, 1, { 5, 3.4100719424460433 });
-
 	// results from Optimal circulant graphs as low-latency network topologies
 	validate_search_props(32, 2, 0, { 4, 2.71 }, 1e-2);
 	validate_search_props(64, 2, 0, { 6, 3.78 }, 1e-2);
@@ -175,29 +182,36 @@ void search_test2()
 	validate_search_props(718, 3, 0, { 9, 6.06415620641562 });
 	validate_search_props(137, 4, 0, { 4, 2.7794117647058822 });
 	validate_search_props(201, 4, 0, { 4, 3.12 });
+
+	validate_search_props(718, 3, 1, { 9, 6.06415620641562 });
+	validate_search_props(160, 4, 1, { 4, 2.9056603773584904 });
+	validate_search_props(279, 4, 1, { 5, 3.4100719424460433 });
+
 }
 
 
 void search_test3() {
-	constexpr int min_n = 5, max_n = 20;
-	for (int n = min_n; n < max_n; ++n) {
-		const int k_max = n / 2;
-		for (int k = 1; k <= k_max; ++k) {
-			std::vector<int> res;
-			const auto res_prop = pcgp::pcgp_parallel(res, n, k, 0, IntGraphProp_infty(), 1);
-			validate(!!res_prop);
-			validate(!res.empty());
-			std::vector<int> res_parallel;
-			const auto res_prop_parallel = pcgp::pcgp_parallel(res_parallel, n, k, 0, IntGraphProp_infty(), std::thread::hardware_concurrency());
-			validate(!!res_prop_parallel);
-			validate(IntGraphProp_equal(&(*res_prop), &(*res_prop_parallel)));
-			validate(res_parallel.size() == res.size());
-			validate(std::ranges::equal(res, res_parallel));
-			std::vector<int> res_pruned;
-			const auto res_prop_pruned = pcgp::pcgp_parallel(res_pruned, n, k, 0, *res_prop, std::thread::hardware_concurrency());
-			validate(!!res_prop_pruned);
-			validate(IntGraphProp_equal(&(*res_prop), &(*res_prop_pruned)));
-			validate(std::ranges::equal(res, res_pruned));
+	for (const auto search_fn : { pcgp::pcgp_parallel, pcgp::pcgp_parallel_isomorph, pcgp::pcgp_parallel_isomorph_full }) {
+		constexpr int min_n = 5, max_n = 20;
+		for (int n = min_n; n < max_n; ++n) {
+			const int k_max = n / 2;
+			for (int k = 1; k <= k_max; ++k) {
+				std::vector<int> res;
+				const auto res_prop = search_fn(res, n, k, 0, IntGraphProp_infty(), 1);
+				validate(!!res_prop);
+				validate(!res.empty());
+				std::vector<int> res_parallel;
+				const auto res_prop_parallel = search_fn(res_parallel, n, k, 0, IntGraphProp_infty(), std::thread::hardware_concurrency());
+				validate(!!res_prop_parallel);
+				validate(IntGraphProp_equal(&(*res_prop), &(*res_prop_parallel)));
+				validate(res_parallel.size() == res.size());
+				validate(std::ranges::equal(res, res_parallel));
+				std::vector<int> res_pruned;
+				const auto res_prop_pruned = search_fn(res_pruned, n, k, 0, *res_prop, std::thread::hardware_concurrency());
+				validate(!!res_prop_pruned);
+				validate(IntGraphProp_equal(&(*res_prop), &(*res_prop_pruned)));
+				validate(std::ranges::equal(res, res_pruned));
+			}
 		}
 	}
 }
@@ -205,23 +219,26 @@ void search_test3() {
 
 template<int k>
 void validate_search_graphs(int n, int so, GraphProp expected_prop, std::set<std::array<int, k>> expected_graphs, double tol = 1e-6) {
-	std::vector<int> res_graphs;
-	const auto res_int_prop =pcgp::pcgp_parallel(res_graphs, n, k, so);
-	validate(!!res_int_prop);
-	GraphProp res_prop;
-	calcGraphProp(n, &(*(res_int_prop)), &res_prop);
-	validate(are_close(res_prop, expected_prop, tol));
 
-	const size_t n_graphs = res_graphs.size() / k;
-	validate(n_graphs == expected_graphs.size());
-	for (size_t i = 0; i < n_graphs; ++i) {
-		std::array<int, k> res_jumps;
-		std::copy(
-			res_graphs.begin() + i * k,
-			res_graphs.begin() + (i + 1) * k,
-			res_jumps.begin()
-		);
-		validate(expected_graphs.contains(res_jumps));
+	for (const auto search_fn : { pcgp::pcgp_parallel, pcgp::pcgp_parallel_isomorph, pcgp::pcgp_parallel_isomorph_full }) {
+		std::vector<int> res_graphs;
+		const auto res_int_prop = search_fn(res_graphs, n, k, so, IntGraphProp_infty(), std::thread::hardware_concurrency());
+		validate(!!res_int_prop);
+		GraphProp res_prop;
+		calcGraphProp(n, &(*(res_int_prop)), &res_prop);
+		validate(are_close(res_prop, expected_prop, tol));
+
+		const size_t n_graphs = res_graphs.size() / k;
+		validate(n_graphs == expected_graphs.size());
+		for (size_t i = 0; i < n_graphs; ++i) {
+			std::array<int, k> res_jumps;
+			std::copy(
+				res_graphs.begin() + i * k,
+				res_graphs.begin() + (i + 1) * k,
+				res_jumps.begin()
+			);
+			validate(expected_graphs.contains(res_jumps));
+		}
 	}
 }
 
@@ -260,7 +277,7 @@ int main() {
 		search_test4();
 	}
 	catch (const std::exception& e) {
-		printf("Error: test_pcgp_parallel failed\n");
+		printf("Error: pcgp_test failed\n");
 		printf(e.what());
 		printf("Exception: %s\n", e.what());
 		return 1;
